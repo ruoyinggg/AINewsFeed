@@ -6,7 +6,7 @@ Use **Render Free** for the web service and **Neon Free** for PostgreSQL. No per
 
 1. Sign in at https://console.neon.tech and create a **Free** project. Choose a region near Oregon / US West if available.
 2. Open **Connect** and copy the PostgreSQL connection string. Prefer the pooled hostname for a hosted app. It starts with `postgresql://` and includes the database username and password.
-3. Keep this string private. Enter it only in Render's secret environment-variable field, not in Git, a screenshot, or chat. The app verifies TLS certificates for hosted database connections.
+3. Keep this string private. Enter it only in Render's secret environment-variable field, not in Git, a screenshot, or chat. The app verifies TLS certificates for hosted database connections and prefers IPv4 transport for hosting environments without IPv6 routing; the Neon hostname is retained for certificate verification.
 
 ## 2. Create the free web service
 
@@ -58,7 +58,7 @@ This uses a persistent named SQLite volume and binds port 8000 to the host's loo
 
 ## Local PostgreSQL tests
 
-Local SQLite tests require no extra packages. To run the same 13 tests against PostgreSQL, install `requirements.txt` and set `TEST_DATABASE_URL` to a **dedicated disposable test database**:
+Local SQLite tests require no extra packages. To run the same test suite against PostgreSQL, install `requirements.txt` and set `TEST_DATABASE_URL` to a **dedicated disposable test database**:
 
 ```sh
 python -m pip install -r requirements.txt

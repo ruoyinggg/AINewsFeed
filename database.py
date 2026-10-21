@@ -1,6 +1,26 @@
 """Small parameter/row adapter for optional hosted PostgreSQL storage."""
 import re
 import ssl
+import socket
+
+
+def prefer_ipv4(options):
+    """Use IPv4 transport while retaining DNS hostnames for TLS/SNI verification."""
+    options = dict(options)
+    host = options.get('host', '')
+    if not host or ',' in host or host.startswith('/') or options.get('hostaddr'):
+        return options  # Preserve explicit address and multi-host configurations.
+    try:
+        records = socket.getaddrinfo(host, options.get('port') or 5432,
+                                     family=socket.AF_INET, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return options  # IPv6-only hosts and DNS failures retain libpq's normal handling.
+    addresses = list(dict.fromkeys(record[4][0] for record in records))
+    if addresses:
+        options['hostaddr'] = ','.join(addresses)
+        # libpq requires equally-sized host/hostaddr lists. Keep the real TLS name.
+        options['host'] = ','.join([host] * len(addresses))
+    return options
 
 
 class Record(dict):
@@ -22,7 +42,7 @@ class PostgresConnection:
         if options.get('host') not in ('127.0.0.1', 'localhost', '::1'):
             options['sslmode'] = 'verify-full'
             options.setdefault('sslrootcert', ssl.get_default_verify_paths().cafile)
-        self.connection = psycopg.connect(**options, connect_timeout=10, row_factory=record_factory)
+        self.connection = psycopg.connect(**prefer_ipv4(options), connect_timeout=10, row_factory=record_factory)
 
     def execute(self, sql, params=()):
         if isinstance(params, dict):
