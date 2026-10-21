@@ -40,7 +40,7 @@ Do not set `DISABLE_FEEDS=1` in the hosted service. This is only for isolated te
 
 ## Free-plan limitations
 
-Render's free web service sleeps after inactivity and can take a while to wake. News is fetched at startup and every 15 minutes **while the service is running**, not continuously while it sleeps. The browser reloads current results every 30 seconds while visible. Neon may also suspend idle database compute and wake on demand. Availability and capacity are subject to each provider's free-tier limits.
+Render's free web service sleeps after inactivity and can take a while to wake. News is fetched at startup and every 24 hours **while the service is running**, not continuously while it sleeps. The browser reloads current results every 30 seconds while visible. Neon may also suspend idle database compute and wake on demand. Availability and capacity are subject to each provider's free-tier limits.
 
 Votes and comments are stored in Neon when `DATABASE_URL` is configured. Without it, the app falls back to SQLite; local SQLite data on a free Render service will be lost on redeploy or replacement. Existing feedback in your computer's SQLite file is not automatically transferred to Neon; the local file is preserved.
 

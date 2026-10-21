@@ -94,7 +94,7 @@ async function loadFeed({silent=false}={}) {
   try {
     const feed = await api('/api/feed');
     if (!state.demo) { state.feed = feed; render(); }
-    if (!silent && feed.last_updated) toast('Briefing updated. Sources are checked every 15 minutes.');
+    if (!silent && feed.last_updated) toast('Briefing updated. Sources are checked every 24 hours.');
   } catch (error) {
     if (!silent || !state.feed) {
       $('#notice').textContent = 'Could not reach the server. Please check your connection and refresh.';

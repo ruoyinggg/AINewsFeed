@@ -26,7 +26,7 @@ from html.parser import HTMLParser
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DATABASE_PATH', str(ROOT / 'data' / 'news.sqlite3')))
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
-REFRESH_SECONDS = 900
+REFRESH_SECONDS = 24 * 60 * 60
 SOURCES = [
     {'name': 'TechCrunch', 'url': 'https://techcrunch.com/category/artificial-intelligence/feed/', 'kind': 'news'},
     {'name': 'The Guardian', 'url': 'https://www.theguardian.com/technology/artificialintelligenceai/rss', 'kind': 'news'},
