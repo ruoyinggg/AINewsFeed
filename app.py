@@ -20,10 +20,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+from database import PostgresConnection
 from html.parser import HTMLParser
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DATABASE_PATH', str(ROOT / 'data' / 'news.sqlite3')))
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 REFRESH_SECONDS = 900
 SOURCES = [
     {'name': 'TechCrunch', 'url': 'https://techcrunch.com/category/artificial-intelligence/feed/', 'kind': 'news'},
@@ -58,9 +60,12 @@ def plain(value, limit=500):
 
 @contextmanager
 def connect():
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys=ON')
+    if DATABASE_URL:
+        conn = PostgresConnection(DATABASE_URL)
+    else:
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA foreign_keys=ON')
     try:
         with conn:
             yield conn
@@ -69,7 +74,8 @@ def connect():
 
 
 def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not DATABASE_URL:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
         conn.executescript('''
         PRAGMA journal_mode=WAL;
@@ -229,7 +235,7 @@ def feed_worker():
 
 def serialize_article(conn, article, visitor):
     result = {**dict(article), **audience_profile(article['title'], article['description'])}
-    counts = conn.execute('SELECT SUM(value=1) AS up, SUM(value=-1) AS down FROM votes WHERE article_id=?', (article['id'],)).fetchone()
+    counts = conn.execute('SELECT SUM(CASE WHEN value=1 THEN 1 ELSE 0 END) AS up, SUM(CASE WHEN value=-1 THEN 1 ELSE 0 END) AS down FROM votes WHERE article_id=?', (article['id'],)).fetchone()
     vote = conn.execute('SELECT value FROM votes WHERE article_id=? AND visitor=?', (article['id'], visitor)).fetchone()
     result.update(up=counts['up'] or 0, down=counts['down'] or 0, my_vote=vote['value'] if vote else 0,
                   comments=conn.execute('SELECT COUNT(*) FROM comments WHERE article_id=?', (article['id'],)).fetchone()[0])
@@ -268,6 +274,10 @@ def get_feed(visitor):
 
 class Handler(BaseHTTPRequestHandler):
     server_version = 'SignalAI'
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(20)
 
     def visitor(self):
         cookie = SimpleCookie()
@@ -353,9 +363,10 @@ class Handler(BaseHTTPRequestHandler):
             recent = conn.execute('SELECT COUNT(*) FROM comments WHERE visitor=? AND created>?', (visitor, time.time()-60)).fetchone()[0]
             if recent >= 5: return self.respond(429, {'error': 'Please wait a minute before commenting again.'})
             created = time.time()
-            cursor = conn.execute('INSERT INTO comments(article_id,visitor,name,body,created) VALUES (?,?,?,?,?)', (article_id, visitor, name, body, created))
+            cursor = conn.execute('INSERT INTO comments(article_id,visitor,name,body,created) VALUES (?,?,?,?,?) RETURNING id', (article_id, visitor, name, body, created))
+            comment_id = cursor.fetchone()[0]
             conn.commit()
-            self.respond(201, {'id': cursor.lastrowid, 'name': name, 'body': body, 'created': created})
+            self.respond(201, {'id': comment_id, 'name': name, 'body': body, 'created': created})
 
     def log_message(self, fmt, *args): log.info(fmt, *args)
 

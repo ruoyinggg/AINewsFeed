@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: signal-ai-news
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: DATABASE_URL
+        sync: false

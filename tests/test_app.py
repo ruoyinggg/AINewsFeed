@@ -2,6 +2,7 @@ import concurrent.futures
 from http.cookiejar import CookieJar
 from http.server import ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -24,6 +25,8 @@ class AppTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
         cls.old_path = app.DB_PATH
+        cls.old_url = app.DATABASE_URL
+        app.DATABASE_URL = os.environ.get('TEST_DATABASE_URL', '')
         app.DB_PATH = Path(cls.temp.name)/'test.sqlite3'
         app.init_db()
         cls.server = ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
@@ -37,6 +40,7 @@ class AppTest(unittest.TestCase):
         cls.server.server_close()
         cls.thread.join()
         app.DB_PATH = cls.old_path
+        app.DATABASE_URL = cls.old_url
         cls.temp.cleanup()
 
     def setUp(self):
@@ -51,7 +55,7 @@ class AppTest(unittest.TestCase):
         rows = app.parse_feed(data or rss(), source)
         with app.connect() as conn:
             for r in rows:
-                conn.execute('INSERT OR IGNORE INTO articles VALUES (:id,:title,:url,:description,:source,:kind,:category,:published,:fetched)', r)
+                conn.execute('INSERT INTO articles VALUES (:id,:title,:url,:description,:source,:kind,:category,:published,:fetched) ON CONFLICT DO NOTHING', r)
         return rows
 
     def request(self, path, data=None, client=None, headers=None):

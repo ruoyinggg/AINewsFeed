@@ -1,0 +1,2 @@
+# Optional for local SQLite mode; installed by the deployment image.
+psycopg[binary]==3.3.6

@@ -1,0 +1,16 @@
+services:
+  signal:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      DATABASE_PATH: /var/lib/signal/news.sqlite3
+    volumes:
+      - signal-data:/var/lib/signal
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+volumes:
+  signal-data:

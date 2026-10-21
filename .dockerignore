@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.pyc
+data
+.env
+.env.*
+.venv
+tests
+README.md
+compose.yaml
+render.yaml

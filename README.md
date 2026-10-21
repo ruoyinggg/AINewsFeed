@@ -19,6 +19,10 @@ python -m unittest discover -s tests -v
 
 The test suite uses a temporary database and mocked publisher responses. It tests RSS/Atom ingestion, partial outages and caching, ranking, duplicate removal, voting across separate browser sessions, comments, rate limits, input validation, and static route protections. It does not contact publishers.
 
+## Free hosting
+
+See [DEPLOY.md](DEPLOY.md) for the **Render Free + Neon Free** deployment guide. The repository includes a Dockerfile and `render.yaml` Blueprint. PostgreSQL keeps votes and comments across free-host redeploys; the local SQLite workflow still needs no packages. Free web services sleep when idle, so background refresh runs only while the app is awake.
+
 ## How it works
 
 - **Collection:** a background worker fetches public RSS feeds at startup and every 15 minutes. Requests have a 15-second timeout and 2 MB response limit. Failed publishers do not discard cached articles. TLS verification remains enabled.
@@ -27,7 +31,7 @@ The test suite uses a temporary database and mocked publisher responses. It test
 - **Deep read:** MIT Technology Review and AI Snake Oil (now hosted at Normal Tech) supply the analysis pool. One article from the past 30 days is selected using the same audience priority, then relevance, recency, and excerpt length. No relevant analysis means no recommendation. This heuristic is a starting point, not a claim of objective quality or an LLM assessment.
 - **Attribution:** titles and excerpts come from the publishers. Every story links to its original article. Full articles are not copied; a publisher may require a subscription.
 - **Feedback:** a random HttpOnly, SameSite cookie identifies a browser. A reader can upvote or downvote each story, change their choice, or click again to remove it. Counts and comments are shared across browsers and survive server restarts. Names and comments are public. The name field is remembered in browser local storage.
-- **Storage:** SQLite with WAL mode at `data/news.sqlite3`, ignored by Git. Back up the database (using SQLite's backup API or after stopping the server) to preserve feedback. The app does not delete old feedback.
+- **Storage:** by default, SQLite with WAL mode at `data/news.sqlite3`, ignored by Git. Set `DATABASE_URL` and install `requirements.txt` to use persistent hosted PostgreSQL instead. Back up the database (using SQLite's backup API or after stopping the server) to preserve feedback. The app does not delete old feedback.
 - **Failure states:** source health and stale data are visible. If there are no recent stories, an empty state offers an opt-in **sample briefing**. Sample headlines are illustrative, links go to publisher homepages, and sample feedback is only in memory. Sample items are never inserted into the database or presented as live reporting.
 - **Refresh:** the frontend checks the server every 30 seconds while visible. “Refresh” reloads the current shortlist; it does not trigger extra requests to publishers. Audience filters operate on the selected top ten: “For all three” shows shared stories only, while a discipline filter includes shared stories and any other stories tagged for that discipline. Every story displays its primary audience and a rule-based “Why it matters” note.
 
@@ -37,6 +41,7 @@ The test suite uses a temporary database and mocked publisher responses. It test
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Listen interface |
 | `PORT` | `8000` | Listen port |
+| `DATABASE_URL` | unset | Optional PostgreSQL connection string; takes precedence over SQLite. Keep private. |
 | `DATABASE_PATH` | `data/news.sqlite3` next to `app.py` | Persistent SQLite path |
 | `COOKIE_SECURE` | unset | Set to `1` behind HTTPS so identity cookies are secure |
 | `DISABLE_FEEDS` | unset | Set to `1` to stop background fetching for isolated tests |
@@ -64,4 +69,4 @@ All responses are JSON. Write requests require `Content-Type: application/json`;
 
 ## Before public production use
 
-This is a functional first version with anonymous participation. It includes text escaping, parameterized SQL, size limits, same-origin checks, security headers, and a five-comments-per-minute limit per browser. Browser identities can be reset; there are no accounts, human moderation, reporting tools, or robust abuse prevention yet. A public launch should add those capabilities, a production web server/reverse proxy, operational monitoring, backups, a privacy policy, and a review of publisher feed terms. No deployment has been performed.
+This is a functional first version with anonymous participation. It includes text escaping, parameterized SQL, size limits, same-origin checks, security headers, and a five-comments-per-minute limit per browser. Browser identities can be reset; there are no accounts, human moderation, reporting tools, or robust abuse prevention yet. A public launch should add those capabilities, a production web server/reverse proxy, operational monitoring, backups, a privacy policy, and a review of publisher feed terms. Deployment files and instructions are provided; a live public URL exists only after you deploy through your hosting account.
