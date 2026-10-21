@@ -42,25 +42,25 @@ function actions(article) {
 }
 function renderNews() {
   const all = state.feed?.articles || [];
-  const filtered = all.filter(a => state.filter === 'All stories' || a.category === state.filter);
+  const filtered = all.filter(a => state.filter === 'All stories' || (state.filter === 'All three' ? a.audience === 'All three' : a.audiences?.includes(state.filter)));
   $('#story-count').textContent = String(all.length).padStart(2, '0');
   if (!all.length) {
-    $('#news-list').innerHTML = `<div class="empty-state"><span class="empty-icon">⌁</span><h3>${state.feed?.refreshing?'Finding the signal.':'A little quiet here, for now.'}</h3><p>${state.feed?.refreshing?'We’re checking the publisher feeds. The shortlist will update as soon as stories arrive.':'No recent stories are available. Publisher feeds may be unreachable. Check source status or explore an explicitly labeled sample briefing.'}</p><button id="demo-button">Explore a sample briefing <span class="arrow-icon" aria-hidden="true"></span></button></div>`;
+    $('#news-list').innerHTML = `<div class="empty-state"><span class="empty-icon">⌁</span><h3>${state.feed?.refreshing?'Finding the signal.':'A little quiet here, for now.'}</h3><p>${state.feed?.refreshing?'We’re checking the publisher feeds. The shortlist will update as soon as stories arrive.':'No recent stories match the product-building focus. Publisher feeds may also be unreachable. Check source status or explore an explicitly labeled sample briefing.'}</p><button id="demo-button">Explore a sample briefing <span class="arrow-icon" aria-hidden="true"></span></button></div>`;
     return;
   }
   if (!filtered.length) {
-    $('#news-list').innerHTML = '<div class="empty-state"><span class="empty-icon">⌁</span><h3>No stories in this category.</h3><p>Try another category or come back after the next update.</p><button id="reset-filter">See all stories <span class="arrow-icon" aria-hidden="true"></span></button></div>';
+    $('#news-list').innerHTML = '<div class="empty-state"><span class="empty-icon">⌁</span><h3>No stories for this audience.</h3><p>Try another audience or come back after the next update.</p><button id="reset-filter">See all stories <span class="arrow-icon" aria-hidden="true"></span></button></div>';
     return;
   }
-  $('#news-list').innerHTML = filtered.map(a => `<article class="news-card"><span class="rank">${String(all.indexOf(a)+1).padStart(2,'0')}</span><div><div class="story-meta"><span class="category-tag">${escapeHTML(a.category)}</span><span class="source">${escapeHTML(a.source)}</span><span>·</span><time datetime="${new Date(a.published*1000).toISOString()}">${state.demo?'Sample':timeAgo(a.published)}</time></div><h3><a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.title)} <span class="external-arrow"><span class="arrow-icon" aria-hidden="true"></span></span></a></h3><p>${escapeHTML(a.description || 'Read the full reporting at the original publisher.')}</p>${actions(a)}</div></article>`).join('');
+  $('#news-list').innerHTML = filtered.map(a => `<article class="news-card"><span class="rank">${String(all.indexOf(a)+1).padStart(2,'0')}</span><div><div class="story-meta"><span class="category-tag">${escapeHTML(a.audience || a.category)}</span><span class="source">${escapeHTML(a.source)}</span><span>·</span><time datetime="${new Date(a.published*1000).toISOString()}">${state.demo?'Sample':timeAgo(a.published)}</time></div><h3><a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.title)} <span class="external-arrow"><span class="arrow-icon" aria-hidden="true"></span></span></a></h3><p>${escapeHTML(a.description || 'Read the full reporting at the original publisher.')}</p><div class="why-matters"><strong>Why it matters</strong> ${escapeHTML(a.why_it_matters || '')}</div>${actions(a)}</div></article>`).join('');
 }
 function renderDeep() {
   const a = state.feed?.deep_read;
   if (!a) {
-    $('#deep-content').innerHTML = '<div class="deep-empty"><span class="eyebrow">A MOMENT FOR PERSPECTIVE</span><h2>Make room for<br>a bigger idea.</h2><p>No recent analysis is available yet. Our recommended read will appear here when the analysis feeds connect.</p></div>';
+    $('#deep-content').innerHTML = '<div class="deep-empty"><span class="eyebrow">A MOMENT FOR PERSPECTIVE</span><h2>Make room for<br>a bigger idea.</h2><p>No recent analysis matches our product-building focus yet. A relevant recommended read will appear here when available.</p></div>';
     return;
   }
-  $('#deep-content').innerHTML = `<div class="deep-kicker">${escapeHTML(a.source)} <span>·</span> ${state.demo?'SAMPLE ARTICLE':timeAgo(a.published)}</div><h2><a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.title)}</a></h2><p>${escapeHTML(a.description || 'Explore the full argument at the original publisher.')}</p><div class="why-read"><strong>Why make time for it</strong><p>A longer perspective from our AI analysis sources, selected to look beyond the latest headlines.</p></div><a class="read-deep" href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${state.demo?'Visit sample source':'Read the full perspective'} <span><span class="arrow-icon" aria-hidden="true"></span></span></a>${actions(a)}`;
+  $('#deep-content').innerHTML = `<div class="deep-kicker">${escapeHTML(a.audience || '')} · ${escapeHTML(a.source)} <span>·</span> ${state.demo?'SAMPLE ARTICLE':timeAgo(a.published)}</div><h2><a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(a.title)}</a></h2><p>${escapeHTML(a.description || 'Explore the full argument at the original publisher.')}</p><div class="why-read"><strong>Why make time for it</strong><p>${escapeHTML(a.why_it_matters || 'A longer perspective on building useful AI products.')}</p></div><a class="read-deep" href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${state.demo?'Visit sample source':'Read the full perspective'} <span><span class="arrow-icon" aria-hidden="true"></span></span></a>${actions(a)}`;
 }
 function renderSources() {
   const sources = ['TechCrunch','The Guardian','MIT Technology Review','AI Snake Oil'];
@@ -115,20 +115,20 @@ function setFilter(filter) {
 function startDemo() {
   state.demo=true;
   const examples = [
-    ['Models & tools','TechCrunch','Smaller models, bigger possibilities: the move toward on-device AI','An illustrative look at why efficient models could bring useful AI tools to more devices, with fewer cloud dependencies.'],
-    ['Research','The Guardian','What should an AI benchmark actually measure?','An example story exploring the gap between impressive test scores and reliable performance in everyday work.'],
-    ['Industry','TechCrunch','The next chapter for AI startups is about real-world usefulness','A sample report on how teams might move from eye-catching demos to products people return to every day.'],
-    ['Policy & society','The Guardian','Who gets a say in the future of artificial intelligence?','This illustrative headline asks how communities, researchers, and policymakers can shape decisions about new technology.'],
-    ['Models & tools','TechCrunch','AI coding assistants are changing how teams review software','A sample story about the opportunities and tradeoffs of bringing AI tools into the development process.'],
-    ['Research','The Guardian','Beyond the chatbot: a closer look at AI for scientific discovery','An illustrative overview of how machine learning can support researchers while leaving careful validation to people.'],
-    ['Policy & society','The Guardian','The open questions around AI, authorship, and creative work','A sample conversation about consent, attribution, and the changing relationship between tools and the people who use them.'],
-    ['Industry','TechCrunch','Building the infrastructure behind the next generation of AI','An example story examining the energy, hardware, and engineering choices that sit beneath the interface.'],
-    ['Models & tools','TechCrunch','A more practical approach to personal AI assistants','An illustrative look at what it would take to make assistants useful, trustworthy, and understandable.'],
-    ['Research','The Guardian','Why understanding a model’s limits matters as much as its capabilities','A sample report about uncertainty, evaluation, and knowing when a system needs human judgment.']
+    ['Models & tools','TechCrunch','Smaller models, bigger possibilities: building useful on-device AI','An illustrative look at product tradeoffs, implementation constraints, and interaction opportunities when AI runs on a device.'],
+    ['Research','The Guardian','Evaluating an AI assistant across product, engineering, and design','A sample framework that brings customer value, model reliability, and usability into one release decision.'],
+    ['Models & tools','TechCrunch','A shared workflow for building a useful AI agent','An illustrative case study connecting product requirements, tool integration, and human oversight.'],
+    ['Industry','The Guardian','Measuring adoption and retention for a new AI product','An example of how a PM might distinguish a compelling demo from a feature that delivers sustained customer value.'],
+    ['Industry','TechCrunch','Pricing an AI feature without hiding the cost from customers','A sample guide to packaging AI capabilities and measuring willingness to pay against usage costs.'],
+    ['Models & tools','TechCrunch','A practical guide to tool calling in an AI application','An illustrative developer walkthrough of tool schemas, validation, error handling, and execution boundaries.'],
+    ['Research','The Guardian','Evaluating inference latency before shipping a new model','A sample engineering checklist for comparing response time, cost, and reliability under realistic workloads.'],
+    ['Models & tools','TechCrunch','A closer look at a new AI SDK for developers','An example introduction to integration patterns and the engineering tradeoffs behind an AI development toolkit.'],
+    ['Models & tools','The Guardian','Prototyping an AI interface that makes uncertainty visible','An illustrative design exploration of confidence cues, corrections, and graceful recovery when AI makes mistakes.'],
+    ['Research','The Guardian','User research methods for testing conversational experiences','A sample guide to usability testing, observing trust, and discovering where conversational interfaces confuse people.']
   ];
   const now=Date.now()/1000;
-  const demoArticles=examples.map(([category,source,title,description],i)=>({id:`sample-${i}`,category,source,title,description,kind:'news',published:now-i*3600,url:source==='TechCrunch'?'https://techcrunch.com/category/artificial-intelligence/':'https://www.theguardian.com/technology/artificialintelligenceai',up:0,down:0,my_vote:0,comments:0}));
-  state.feed={articles:demoArticles,deep_read:{id:'sample-deep',title:'What do we lose when we outsource our thinking?',description:'An illustrative deep read: as AI makes it easier to find an answer, the more interesting question may be how we preserve the habit of asking better questions.',source:'AI Snake Oil',kind:'deep',category:'Policy & society',published:now,url:'https://www.aisnakeoil.com/',up:0,down:0,my_vote:0,comments:0},sources:[]};
+  const demoArticles=examples.map(([category,source,title,description],i)=>({id:`sample-${i}`,audience:i<3?'All three':i<5?'PMs':i<8?'Developers':'Designers',audiences:i<3?['PMs','Developers','Designers']:i<5?['PMs']:i<8?['Developers']:['Designers'],why_it_matters:'An illustrative example of a practical AI product-building topic.',category,source,title,description,kind:'news',published:now-i*3600,url:source==='TechCrunch'?'https://techcrunch.com/category/artificial-intelligence/':'https://www.theguardian.com/technology/artificialintelligenceai',up:0,down:0,my_vote:0,comments:0}));
+  state.feed={articles:demoArticles,deep_read:{id:'sample-deep',audience:'All three',audiences:['PMs','Developers','Designers'],why_it_matters:'An illustrative framework for evaluating AI quality across product, engineering, and design.',title:'How should a product team evaluate an AI assistant?',description:'An illustrative deep read about bringing customer value, engineering reliability, and usable interactions into one shared AI evaluation process.',source:'AI Snake Oil',kind:'deep',category:'Policy & society',published:now,url:'https://www.aisnakeoil.com/',up:0,down:0,my_vote:0,comments:0},sources:[]};
   state.demoComments={}; setFilter('All stories'); render();
 }
 async function vote(button) {

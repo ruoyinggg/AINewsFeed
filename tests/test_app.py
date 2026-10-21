@@ -14,7 +14,7 @@ from urllib.request import build_opener, HTTPCookieProcessor, Request
 import app
 
 
-def rss(title='A new AI model', url='https://example.com/story', date=None):
+def rss(title='A new AI SDK release', url='https://example.com/story', date=None):
     date = date or time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
     return f'''<rss version="2.0"><channel><item><title>{title}</title><link>{url}</link><description>&lt;p&gt;Independent &amp;amp; useful reporting.&lt;/p&gt;</description><pubDate>{date}</pubDate></item></channel></rss>'''.encode()
 
@@ -65,7 +65,7 @@ class AppTest(unittest.TestCase):
 
     def test_live_ingestion_refresh_and_partial_failure_preserves_cache(self):
         def fetch(source):
-            return app.parse_feed(rss(title=source['name']+' AI news',url='https://example.com/'+source['name'].replace(' ', '-')), source)
+            return app.parse_feed(rss(title=source['name']+' AI SDK release',url='https://example.com/'+source['name'].replace(' ', '-')), source)
         with patch.object(app, 'fetch_source', side_effect=fetch): app.refresh_feeds()
         status, feed = self.request('/api/feed')
         self.assertEqual(status, 200)
@@ -81,17 +81,49 @@ class AppTest(unittest.TestCase):
     def test_top_ten_dedup_recency_diversity_and_deep_read(self):
         now=time.time()
         for i in range(15):
-            self.ingest(app.SOURCES[i % 2], rss(title=f'AI story {i}',url=f'https://example.com/{i}',
+            self.ingest(app.SOURCES[i % 2], rss(title=f'AI SDK release story {i}',url=f'https://example.com/{i}',
                          date=time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(now-i*3600))))
         self.ingest(data=rss(title='Too old',url='https://example.com/old',date='Mon, 01 Jan 2001 00:00:00 GMT'))
-        self.ingest(app.SOURCES[2],rss(title='Thoughtful analysis',url='https://example.com/deep'))
-        self.ingest(app.SOURCES[1],rss(title='AI story 0',url='https://example.com/duplicate'))
+        self.ingest(app.SOURCES[2],rss(title='Thoughtful analysis of AI interface prototyping',url='https://example.com/deep'))
+        self.ingest(app.SOURCES[1],rss(title='AI SDK release story 0',url='https://example.com/duplicate'))
         _, feed=self.request('/api/feed')
         self.assertEqual(len(feed['articles']),10)
         self.assertEqual(len({a['title'] for a in feed['articles']}),10)
         self.assertNotIn('Too old',[a['title'] for a in feed['articles']])
-        self.assertEqual(feed['deep_read']['title'],'Thoughtful analysis')
+        self.assertEqual(feed['deep_read']['title'],'Thoughtful analysis of AI interface prototyping')
         self.assertEqual(len({a['source'] for a in feed['articles'][:2]}),2)
+
+    def test_audience_priority_overrides_recency_and_publisher_diversity(self):
+        titles = ['New AI interface prototyping techniques', 'An AI SDK for developers',
+                  'Pricing and user adoption for an AI product',
+                  'How to build and evaluate multimodal AI assistants']
+        now = time.time()
+        for i, title in enumerate(titles):
+            # The all-three item is oldest; the designer item is newest.
+            self.ingest(app.SOURCES[i % 2], rss(title=title, url=f'https://example.com/role-{i}',
+                        date=time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(now-i*86400))))
+        self.ingest(data=rss(title='AI startup raises billions ahead of IPO', url='https://example.com/funding'))
+        self.ingest(data=rss(title='Election politics and the future of AI', url='https://example.com/politics'))
+        _, feed = self.request('/api/feed')
+        self.assertEqual([a['audience'] for a in feed['articles']],
+                         ['All three', 'PMs', 'Developers', 'Designers'])
+        self.assertEqual(feed['articles'][0]['audiences'], ['PMs', 'Developers', 'Designers'])
+        self.assertTrue(all(a['why_it_matters'] for a in feed['articles']))
+        self.assertEqual(len(feed['articles']), 4)  # No backfill with generic coverage.
+
+    def test_two_disciplines_do_not_become_all_three(self):
+        self.ingest(data=rss(title='AI API pricing for developers', url='https://example.com/two'))
+        _, feed = self.request('/api/feed')
+        article = feed['articles'][0]
+        self.assertEqual(article['audience'], 'PMs')
+        self.assertEqual(article['audiences'], ['PMs', 'Developers'])
+
+    def test_all_three_requires_shared_practical_evidence(self):
+        self.ingest(data=rss(title='AI agents funding round and investors', url='https://example.com/hype'))
+        self.ingest(app.SOURCES[2], rss(title='AI investment market outlook', url='https://example.com/deep-generic'))
+        _, feed = self.request('/api/feed')
+        self.assertEqual(feed['articles'], [])
+        self.assertIsNone(feed['deep_read'])
 
     def test_votes_switch_remove_and_remember_per_browser(self):
         article=self.ingest()[0]

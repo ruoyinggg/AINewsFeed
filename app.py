@@ -99,6 +99,48 @@ def category(title, description):
     return 'Models & tools'
 
 
+# These are explicit editorial rules over publisher titles/excerpts, not an LLM.
+AUDIENCE_RULES = {
+    'PMs': [r'product management|product managers?|product strategy|product roadmap',
+            r'pricing|monetization|user adoption|retention|customer feedback|product.market fit',
+            r'case stud(?:y|ies)|product launch|go.to.market|a/b test|product metrics'],
+    'Developers': [r'\bapi[s]?\b|\bsdk[s]?\b|\bide[s]?\b|coding|programming|developer',
+                   r'open.source|inference|fine.tun|latency|\brag\b|embeddings?|context window',
+                   r'debug|deployment|code review|software engineer|function calling|tool calling'],
+    'Designers': [r'\bux\b|\bui\b|designers?|interaction design|interface|prototyp',
+                  r'user research|usability|accessibility|design system|figma',
+                  r'human.computer interaction|conversational design|user experience'],
+}
+SHARED_TOPICS = r'ai eval(?:uation)?s?|human.in.the.loop|agent workflows?|multimodal|ai assistants?|ai agents?'
+PRACTICAL_ACTION = r'launch|releas|introduc|build|design|workflow|evaluat|how to|guide|integrat|test|improv'
+
+
+def audience_profile(title, description):
+    text = (title + ' ' + description).lower()
+    scores = {role: sum(bool(re.search(rule, text)) for rule in rules)
+              for role, rules in AUDIENCE_RULES.items()}
+    shared = bool(re.search(SHARED_TOPICS, text) and re.search(PRACTICAL_ACTION, text))
+    # A practical cross-functional topic, or evidence for every discipline, goes first.
+    if shared or all(scores.values()):
+        return {'audience': 'All three', 'audiences': list(scores), 'audience_rank': 0,
+                'relevance': max(1, sum(scores.values())),
+                'why_it_matters': 'A shared product capability or workflow for PMs, developers, and designers to evaluate together.'}
+    relevant = [role for role, score in scores.items() if score]
+    if not relevant:
+        return {'audience': None, 'audiences': [], 'audience_rank': 4, 'relevance': 0,
+                'why_it_matters': ''}
+    # Mixed two-discipline items join the earliest applicable group in the requested order.
+    primary = relevant[0]
+    reasons = {
+        'PMs': 'Useful for product decisions: strategy, adoption, pricing, or measuring customer value.',
+        'Developers': 'Useful for building AI: implementation tools, APIs, model performance, or delivery.',
+        'Designers': 'Useful for shaping AI experiences: interaction patterns, research, prototyping, or accessibility.',
+    }
+    return {'audience': primary, 'audiences': relevant,
+            'audience_rank': list(scores).index(primary) + 1,
+            'relevance': sum(scores.values()), 'why_it_matters': reasons[primary]}
+
+
 def parse_feed(data, source, now=None):
     now = now or time.time()
     if len(data) > 2_000_000: raise ValueError('Feed exceeds size limit')
@@ -186,7 +228,7 @@ def feed_worker():
 
 
 def serialize_article(conn, article, visitor):
-    result = dict(article)
+    result = {**dict(article), **audience_profile(article['title'], article['description'])}
     counts = conn.execute('SELECT SUM(value=1) AS up, SUM(value=-1) AS down FROM votes WHERE article_id=?', (article['id'],)).fetchone()
     vote = conn.execute('SELECT value FROM votes WHERE article_id=? AND visitor=?', (article['id'], visitor)).fetchone()
     result.update(up=counts['up'] or 0, down=counts['down'] or 0, my_vote=vote['value'] if vote else 0,
@@ -198,11 +240,12 @@ def get_feed(visitor):
     now = time.time()
     with connect() as conn:
         rows = conn.execute('SELECT * FROM articles WHERE published>? ORDER BY published DESC', (now - 7*86400,)).fetchall()
-        # Recency drives ranking; a diversity penalty avoids a single publisher dominating.
-        remaining = [r for r in rows if r['kind'] == 'news']
+        # Audience priority is strict; freshness/diversity only rank within a group.
+        candidates = [{**dict(r), **audience_profile(r['title'], r['description'])} for r in rows]
+        remaining = [r for r in candidates if r['kind'] == 'news' and r['relevance']]
         selected, sources, titles = [], {}, set()
         while remaining and len(selected) < 10:
-            best = max(remaining, key=lambda r: -(now-r['published'])/3600 - 6*sources.get(r['source'], 0))
+            best = max(remaining, key=lambda r: (-r['audience_rank'], 3*r['relevance'] - (now-r['published'])/3600 - 6*sources.get(r['source'], 0)))
             remaining.remove(best)
             normalized = re.sub(r'\W+', '', best['title'].lower())
             if normalized in titles: continue
@@ -210,7 +253,9 @@ def get_feed(visitor):
             selected.append(best)
             sources[best['source']] = sources.get(best['source'], 0) + 1
         deep_rows = conn.execute("SELECT * FROM articles WHERE kind='deep' AND published>? ORDER BY published DESC", (now-30*86400,)).fetchall()
-        deep = max(deep_rows, key=lambda r: min(len(r['description']), 400)/100 - (now-r['published'])/86400, default=None)
+        deep_candidates = [{**dict(r), **audience_profile(r['title'], r['description'])} for r in deep_rows]
+        deep = max((r for r in deep_candidates if r['relevance']),
+                   key=lambda r: (-r['audience_rank'], r['relevance'] + min(len(r['description']), 400)/100 - (now-r['published'])/86400), default=None)
         status = [dict(row) for row in conn.execute('SELECT * FROM source_status ORDER BY name')]
         success = [s['success'] for s in status if s['success']]
         return {'articles': [serialize_article(conn, r, visitor) for r in selected],
