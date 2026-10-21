@@ -2,12 +2,13 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    HOME=/home/signal \
     HOST=0.0.0.0 \
     PORT=8000 \
     DATABASE_PATH=/var/lib/signal/news.sqlite3
 WORKDIR /app
 RUN groupadd --gid 10001 signal \
-    && useradd --uid 10001 --gid signal --no-create-home signal \
+    && useradd --uid 10001 --gid signal --create-home --home-dir /home/signal signal \
     && mkdir -p /var/lib/signal \
     && chown signal:signal /var/lib/signal
 COPY requirements.txt ./

@@ -66,3 +66,14 @@ TEST_DATABASE_URL='postgresql://test-user:test-password@localhost:5432/signal_te
 ```
 
 The test suite deletes application table contents in that test database. Never point `TEST_DATABASE_URL` at a live database. `DATABASE_URL` is not used by the test suite unless explicitly supplied as `TEST_DATABASE_URL`.
+
+## Container TLS regression check
+
+To exercise startup as the unprivileged container user against a real TLS-enabled PostgreSQL server:
+
+```sh
+docker build -t signal-news:deployment-test .
+python tests/check_container_tls.py
+```
+
+This requires Docker, OpenSSL, and available local ports 15432 and 18000. It creates disposable test containers and a temporary test CA, deliberately supplies `HOME=/root` at launch, and verifies that startup resets the application home and connects with certificate verification. It cleans up its containers afterwards and never uses a live database.

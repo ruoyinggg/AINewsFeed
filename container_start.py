@@ -1,6 +1,7 @@
 """Initialize mounted storage, then run Signal as an unprivileged user."""
 import os
 from pathlib import Path
+import pwd
 import sys
 
 
@@ -16,6 +17,9 @@ def main():
         os.setgroups([])
         os.setgid(10001)
         os.setuid(10001)
+    # HOME is inherited from the launcher, even after setuid. libpq searches it
+    # for optional client certificates, so point it at the actual runtime user.
+    os.environ['HOME'] = pwd.getpwuid(os.getuid()).pw_dir
     os.execv(sys.executable, [sys.executable, '/app/app.py'])
 
 
